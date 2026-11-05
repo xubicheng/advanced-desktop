@@ -1,0 +1,84 @@
+# ── 安全红线：以下模式一律禁止提交 ─────────────────────────────
+# 凭证 / 密钥
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+id_ecdsa*
+id_dsa*
+*.ppk
+*_rsa
+*_ed25519
+secrets*
+credentials*
+*token*.txt
+*secret*.txt
+.npmrc
+.pypirc
+.netrc
+
+# 本地配置（含 IP / Key）
+config.local.*
+*.local.toml
+local.properties
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/settings.json
+.idea/
+*.swp
+*~
+
+# Rust
+target/
+**/target/
+Cargo.lock.bak
+
+# Android / Gradle
+.gradle/
+**/build/
+build/
+local.properties
+*.apk
+*.aab
+*.jks
+captures/
+
+# Node（若将来用到）
+node_modules/
+dist/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 构建产物 / 日志
+*.log
+logs/*.log
+!logs/README.md
+out/
+release/
+*.zip
+*.7z
+
+# 3D / CAD 中间产物（大文件不进仓库）
+*.stl
+*.3mf
+*.gcode
+hardware/**/renders/
+hardware/**/*.FCStd1
+
+# 大文件与二进制
+*.bin
+*.img
+*.iso
