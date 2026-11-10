@@ -9,7 +9,8 @@ hardware/
 
 ## 状态
 
-**当前为空骨架。** 设计参数已定，图纸尚未出。
+- `adapter-board/`：**Carrier-Lite v0.1 草案已出板**（60×45mm，2 层），含 Gerber、BOM、坐标、STEP、预览与制板说明，见 [FAB-NOTES.md](adapter-board/FAB-NOTES.md)。未出原理图，尺寸待实测。
+- `enclosure/`、`assembly/`：**仍为空骨架。** 设计参数已定，图纸尚未出。
 
 ## 已定的关键参数（照此建模）
 

@@ -1,0 +1,13 @@
+﻿Reference,Qty,Description,Package,MPN / Part,Notes
+J1,1,DC 5.5x2.1 barrel jack,THT horizontal,CUI PJ-102AH,center positive
+F1,1,Fuse holder + 3A slow-blow,5x20mm THT,Littelfuse 111 + 0213003.MXP,do not use 1.1A resettable
+D1,1,SS54,SMA,SS54,"40V 5A Schottky, reverse protection"
+D2,1,SMAJ5.0A,SMB,SMAJ5.0A,unidirectional TVS
+C1,1,470uF 10V,Radial D8 P3.5,Generic,"low ESR, height <=12mm"
+C2,1,100nF 50V X7R,0805,Generic,decoupling
+R1,1,1k 1%,0805,Generic,LED current limit
+LED1,1,Green LED,0805,Generic,power indicator
+"J2,J3,J4",3,JST XH 2P,THT vertical,JST B2B-XH-A,"5V/GND: BBB, HUB, AMP"
+SW1,1,6x6x5 tact switch,THT,Generic,"PTT, one side to GND"
+J6,1,2.54mm 1x2 header,THT vertical,Generic,PTT signal to GPIO
+H1-H4,4,M2.5 mounting hole,NPTH 2.7mm,-,mechanical only
