@@ -81,3 +81,4 @@
 | position-smd.csv / position-all.csv | 贴片 / 全部坐标（mm，原点左下） |
 | AD-Carrier-Lite-v0.1.step | 3D 模型，用于结构核对 |
 | preview-top.png / preview-bottom.png | 顶/底预览图 |
+| AD-IMPORT.md | 在 Altium Designer 中导入本板并另存为 .PcbDoc 的步骤 |
