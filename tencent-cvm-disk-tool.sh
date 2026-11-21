@@ -102,22 +102,109 @@ is_recoverable() {
 }
 
 # ============================================================================
-# 腾讯云元数据 & agent 自检
+# 元数据服务：多端点回退 + 强制关闭代理 + IMDSv2 支持
+#   腾讯云 CVM 上 metadata 服务的 4 个可用入口（按出现概率排序）:
+#     1) http://metadata.tencentyun.com     （默认 hostname）
+#     2) http://metadata.instance.tencentyun.com （新域名）
+#     3) http://169.254.0.23                （IP 直连，VPC 内必定可达）
+#     4) http://[fd00:ec2::23]              （IPv6）
+#   curl 必须 unset proxy 变量，否则会出现 "Forwarding error"
 # ============================================================================
+__MD_URL=""           # 选中的可用 base url
+__MD_IMDSV2=0         # 是否启用 IMDSv2 token
+__MD_TOKEN=""         # IMDSv2 token
+
+__md_fetch() {
+  # __md_fetch <path>   静默取值，失败返回空串，永远不输出 "Forwarding error"
+  local path="$1" token_hdr=""
+  [ "$__MD_IMDSV2" = "1" ] && token_hdr="-H X-metadata-token:${__MD_TOKEN}"
+  curl -sS --max-time 2 --noproxy '*' \
+       ${__MD_TOKEN:+-H} ${__MD_TOKEN:+X-metadata-token:${__MD_TOKEN}} \
+       "${__MD_URL}${path}" 2>/dev/null || true
+}
+
+__md_probe() {
+  # __md_probe <url>   探测这个 base 是否可用
+  local url="$1"
+  if curl -sS --max-time 2 --noproxy '*' -o /dev/null \
+       "${url}/version" 2>/dev/null; then
+    echo "$url"; return 0
+  fi
+  # IMDSv2: 先 PUT /latest/api/token 拿 token（TTL 21600s）
+  local tok
+  tok=$(curl -sS --max-time 2 --noproxy '*' -X PUT \
+         -H 'X-metadata-token-ttl-seconds: 21600' \
+         "${url}/latest/api/token" 2>/dev/null || true)
+  if [ -n "$tok" ]; then
+    # 再用 token 试一次
+    if curl -sS --max-time 2 --noproxy '*' \
+         -H "X-metadata-token:${tok}" \
+         -o /dev/null "${url}/version" 2>/dev/null; then
+      echo "__IMDSV2__${url}__${tok}"; return 0
+    fi
+  fi
+  return 1
+}
+
+__md_init() {
+  # 找一个可用的元数据端点，结果写入 __MD_URL / __MD_IMDSV2 / __MD_TOKEN
+  local endpoints=(
+    "http://metadata.tencentyun.com"
+    "http://metadata.instance.tencentyun.com"
+    "http://169.254.0.23"
+    "http://[fd00:ec2::23]"
+  )
+  # 允许环境变量强制覆盖
+  if [ -n "${TENCENT_META_URL:-}" ]; then
+    endpoints=("$TENCENT_META_URL" "${endpoints[@]}")
+  fi
+  for ep in "${endpoints[@]}"; do
+    local probe
+    probe=$(__md_probe "$ep") || continue
+    case "$probe" in
+      __IMDSV2__*)
+        __MD_IMDSV2=1
+        __MD_URL="${probe#__IMDSV2__}"
+        __MD_URL="${__MD_URL%__*}"
+        __MD_TOKEN="${probe##*__}"
+        ;;
+      *)
+        __MD_URL="$probe"
+        __MD_IMDSV2=0
+        __MD_TOKEN=""
+        ;;
+    esac
+    return 0
+  done
+  return 1
+}
+
 cmd_meta() {
   hdr "腾讯云 CVM 元数据"
-  local md_base="http://metadata.tencentyun.com"
-  if curl -s --max-time 2 "${md_base}/version" >/dev/null 2>&1; then
-    echo "instance-id : $(curl -s --max-time 2 ${md_base}/meta-data/instance-id)"
-    echo "region-zone : $(curl -s --max-time 2 ${md_base}/meta-data/placement/region) / $(curl -s --max-time 2 ${md_base}/meta-data/placement/zone)"
-    echo "hostname    : $(curl -s --max-time 2 ${md_base}/meta-data/hostname)"
-    echo "local-ipv4  : $(curl -s --max-time 2 ${md_base}/meta-data/local-ipv4)"
-    echo "public-ipv4 : $(curl -s --max-time 2 ${md_base}/meta-data/public-ipv4)"
-    echo "instance-type: $(curl -s --max-time 2 ${md_base}/meta-data/instance-type)"
-    echo "instance-id-qc: $(curl -s --max-time 2 ${md_base}/meta-data/instance-id-qc 2>/dev/null || echo N/A)"
+
+  # 强制清掉代理环境变量，避免 Forwarding error
+  local _save_proxy="${http_proxy:-} ${https_proxy:-} ${HTTP_PROXY:-} ${HTTPS_PROXY:-}"
+  unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY all_proxy
+
+  if __md_init; then
+    local imds_note=""
+    [ "$__MD_IMDSV2" = "1" ] && imds_note="（IMDSv2 token 模式）"
+    info "元数据端点: ${__MD_URL}${imds_note}"
+    echo "instance-id    : $(__md_fetch /meta-data/instance-id)"
+    echo "region / zone  : $(__md_fetch /meta-data/placement/region) / $(__md_fetch /meta-data/placement/zone)"
+    echo "hostname       : $(__md_fetch /meta-data/hostname)"
+    echo "local-ipv4     : $(__md_fetch /meta-data/local-ipv4)"
+    echo "public-ipv4    : $(__md_fetch /meta-data/public-ipv4)"
+    echo "instance-type  : $(__md_fetch /meta-data/instance-type)"
+    echo "instance-id-qc : $(__md_fetch /meta-data/instance-id-qc || echo N/A)"
+    echo "availability   : $(__md_fetch /meta-data/instance/instance-charge-type || echo N/A)"
   else
-    warn "无法访问元数据服务（可能不在腾讯云内网）"
+    warn "元数据服务不可达（不在腾讯云内网 / 非 CVM / DNS 不通）"
+    info "可以手动指定: TENCENT_META_URL=http://169.254.0.23"
+    info "备用诊断: ip route get 169.254.0.23"
   fi
+  # 还原代理
+  [ -n "$_save_proxy" ] && export http_proxy="${_save_proxy%% *}" https_proxy="${_save_proxy#* }" 2>/dev/null || true
 
   echo; hdr "stargate / cloud-monitor agent 状态"
   for bin in stargate cloud-monitor cloudmonitor cmagent; do
@@ -709,7 +796,7 @@ cmd_report() {
     echo "## 四、结果验证"
     echo
     echo '```bash'
-    cmd_verify 2>/dev/null | sed 's/^/  /'
+    cmd_verify 2>/dev/null | sed -r 's/\x1b\[[0-9;]*m//g' | sed 's/^/  /'
     echo '```'
     echo
     echo "## 五、后续建议"
